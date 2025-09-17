@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AGK ACFT ELEC DIST SYS LEARNING GAME 2</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            -webkit-user-select: none;
+            -ms-user-select: none;
+            user-select: none;
+        }
+        .path {
+            stroke-dasharray: 10;
+            stroke-dashoffset: 1000;
+            animation: dash 5s linear infinite;
+            display: none; /* Initially hidden */
+        }
+        .path.active {
+            display: block;
+        }
+        @keyframes dash {
+            to {
+                stroke-dashoffset: 0;
+            }
+        }
+        .blinking {
+            animation: blinker 1s linear infinite;
+        }
+        @keyframes blinker {
+            50% {
+                opacity: 0.3;
+            }
+        }
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 40px;
+            height: 24px;
+        }
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: .4s;
+            border-radius: 34px;
+        }
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 16px;
+            width: 16px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+        input:checked + .slider {
+            background-color: #4CAF50;
+        }
+        input:checked + .slider:before {
+            transform: translateX(16px);
+        }
+        .bus { fill: #4A5568; transition: fill 0.3s; }
+        .bus.powered { fill: #FBBF24; }
+        .contactor-status { font-size: 9px; font-family: monospace; }
+    </style>
+</head>
+<body class="bg-gray-900 text-white flex flex-col items-center justify-center min-h-screen p-4">
+
+    <div class="w-full max-w-7xl bg-gray-800 rounded-lg shadow-2xl p-6">
+        <h1 class="text-3xl font-bold text-center mb-2 text-cyan-400">AGK ACFT ELEC DISTRIBUTION LEARNING 2</h1>
+        <p class="text-center text-gray-400 mb-6">Based on the provided schematic. Toggle power sources to see system logic.</p>
+
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+            <!-- GEN 1 -->
+            <div class="bg-gray-700 rounded-lg p-3 flex items-center justify-between">
+                <span class="font-semibold">GEN 1</span>
+                <div class="flex items-center space-x-2">
+                    <span class="text-sm" id="gen1-status-text">ON</span>
+                    <label class="switch"><input type="checkbox" id="gen1-switch" checked><span class="slider"></span></label>
+                </div>
+            </div>
+            <!-- GEN 2 -->
+            <div class="bg-gray-700 rounded-lg p-3 flex items-center justify-between">
+                <span class="font-semibold">GEN 2</span>
+                <div class="flex items-center space-x-2">
+                    <span class="text-sm" id="gen2-status-text">ON</span>
+                    <label class="switch"><input type="checkbox" id="gen2-switch" checked><span class="slider"></span></label>
+                </div>
+            </div>
+            <!-- APU GEN -->
+            <div class="bg-gray-700 rounded-lg p-3 flex items-center justify-between">
+                <span class="font-semibold">APU GEN</span>
+                <div class="flex items-center space-x-2">
+                    <span class="text-sm" id="apu-status-text">OFF</span>
+                    <label class="switch"><input type="checkbox" id="apu-switch"><span class="slider"></span></label>
+                </div>
+            </div>
+            <!-- EXT PWR -->
+            <div class="bg-gray-700 rounded-lg p-3 flex items-center justify-between">
+                <span class="font-semibold">EXT PWR</span>
+                <div class="flex items-center space-x-2">
+                    <span class="text-sm" id="ext-pwr-status-text">OFF</span>
+                    <label class="switch"><input type="checkbox" id="ext-pwr-switch"><span class="slider"></span></label>
+                </div>
+            </div>
+        </div>
+
+        <!-- Circuit Diagram -->
+        <div class="bg-gray-900 p-4 rounded-lg border-2 border-gray-700 select-none">
+            <svg viewBox="0 0 800 600" class="w-full h-auto">
+                <!-- SVG definitions for reused components -->
+                <defs>
+                     <g id="component-box">
+                        <rect x="-25" y="-15" width="50" height="30" rx="5" fill="#2D3748" stroke="#4A5568" stroke-width="2"/>
+                    </g>
+                    <g id="contactor-box">
+                        <rect x="-10" y="-10" width="20" height="20" rx="3" fill="#1a202c" stroke="#4A5568" stroke-width="1.5"/>
+                    </g>
+                </defs>
+                
+                <!-- Drawing Paths (Order is important for layering) -->
+                <!-- AC Paths -->
+                <path id="path-gen1-ac1" d="M100 50 V 100" stroke="cyan" stroke-width="3" fill="none" class="path"/>
+                <path id="path-gen2-ac2" d="M700 50 V 100" stroke="cyan" stroke-width="3" fill="none" class="path"/>
+                <path id="path-apu-tie" d="M300 50 V 80 H 500 V 100" stroke="#FFD700" stroke-width="3" fill="none" class="path"/>
+                <path id="path-ext-tie" d="M500 50 V 100" stroke="magenta" stroke-width="3" fill="none" class="path"/>
+                <path id="path-tie-ac1" d="M500 100 H 200 V 130" stroke="lime" stroke-width="3" fill="none" class="path"/>
+                <path id="path-tie-ac2" d="M500 100 H 600 V 130" stroke="lime" stroke-width="3" fill="none" class="path"/>
+                <path id="path-ac1-ess" d="M200 130 V 180" stroke="orange" stroke-width="3" fill="none" class="path"/>
+                <path id="path-ac2-ess" d="M600 130 V 160 H 400 V 180" stroke="orange" stroke-width="3" fill="none" class="path"/>
+                
+                <!-- DC Paths -->
+                <path id="path-ac1-tru1" d="M150 130 V 250" stroke="cyan" stroke-width="3" fill="none" class="path"/>
+                <path id="path-ac2-tru2" d="M650 130 V 250" stroke="cyan" stroke-width="3" fill="none" class="path"/>
+                <path id="path-tru1-dc1" d="M150 280 V 330" stroke="red" stroke-width="3" fill="none" class="path"/>
+                <path id="path-tru2-dc2" d="M650 280 V 330" stroke="red" stroke-width="3" fill="none" class="path"/>
+                <path id="path-ess-ac-tru" d="M350 180 V 250" stroke="orange" stroke-width="3" fill="none" class="path"/>
+                <path id="path-ess-tru-dc" d="M350 280 V 380" stroke="yellow" stroke-width="3" fill="none" class="path"/>
+                <path id="path-dc-xtie" d="M200 330 H 600" stroke="white" stroke-width="2.5" fill="none" class="path"/>
+                
+                <!-- Battery Paths -->
+                <path id="path-dc1-bat1" d="M100 330 V 430 H 150 V 400" stroke="red" stroke-width="3" fill="none" class="path"/>
+                <path id="path-dc2-bat2" d="M700 330 V 430 H 650 V 400" stroke="red" stroke-width="3" fill="none" class="path"/>
+                
+                <!-- Emergency Paths -->
+                <path id="path-ess-ac-inv" d="M450 180 V 250" stroke="orange" stroke-width="3" fill="none" class="path"/>
+                <path id="path-inv-emer-ac" d="M450 280 V 330" stroke="pink" stroke-width="3" fill="none" class="path"/>
+                <path id="path-bat-emer-dc" d="M400 500 V 450" stroke="pink" stroke-width="3" fill="none" class="path"/>
+                <path id="path-ess-dc-emer-dc" d="M400 380 V 430" stroke="yellow" stroke-width="3" fill="none" class="path"/>
+
+                <!-- Power Sources -->
+                <g id="comp-gen1">
+                    <circle cx="100" cy="50" r="20" fill="#2D3748" stroke="#4A5568" stroke-width="2"/>
+                    <circle class="indicator" cx="100" cy="30" r="5" fill="gray"/>
+                    <text x="100" y="55" fill="white" text-anchor="middle">GEN 1</text>
+                </g>
+                <g id="comp-gen2">
+                    <circle cx="700" cy="50" r="20" fill="#2D3748" stroke="#4A5568" stroke-width="2"/>
+                    <circle class="indicator" cx="700" cy="30" r="5" fill="gray"/>
+                    <text x="700" y="55" fill="white" text-anchor="middle">GEN 2</text>
+                </g>
+                 <g id="comp-apu">
+                    <circle cx="300" cy="50" r="20" fill="#2D3748" stroke="#4A5568" stroke-width="2"/>
+                    <circle class="indicator" cx="300" cy="30" r="5" fill="gray"/>
+                    <text x="300" y="55" fill="white" text-anchor="middle">APU</text>
+                </g>
+                <g id="comp-ext-pwr">
+                    <circle cx="500" cy="50" r="20" fill="#2D3748" stroke="#4A5568" stroke-width="2"/>
+                    <circle class="indicator" cx="500" cy="30" r="5" fill="gray"/>
+                    <text x="500" y="50" fill="white" text-anchor="middle" font-size="11">EXT<tspan x="500" dy="1.2em">PWR</tspan></text>
+                </g>
+
+                <!-- AC Buses -->
+                <rect id="bus-ac1" x="50" y="125" width="150" height="10" class="bus"/> <text x="125" y="120" text-anchor="middle" fill="gray">AC BUS 1</text>
+                <rect id="bus-ac2" x="600" y="125" width="150" height="10" class="bus"/> <text x="675" y="120" text-anchor="middle" fill="gray">AC BUS 2</text>
+                <rect id="bus-ess-ac" x="200" y="175" width="250" height="10" class="bus"/> <text x="325" y="170" text-anchor="middle" fill="gray">ESS AC BUS</text>
+                <rect id="bus-emer-ac" x="450" y="325" width="100" height="10" class="bus"/> <text x="500" y="320" text-anchor="middle" fill="gray">EMER AC</text>
+
+                <!-- DC Buses -->
+                <rect id="bus-dc1" x="50" y="325" width="150" height="10" class="bus"/> <text x="125" y="350" text-anchor="middle" fill="gray">DC BUS 1</text>
+                <rect id="bus-dc2" x="600" y="325" width="150" height="10" class="bus"/> <text x="675" y="350" text-anchor="middle" fill="gray">DC BUS 2</text>
+                <rect id="bus-ess-dc" x="200" y="375" width="200" height="10" class="bus"/> <text x="300" y="400" text-anchor="middle" fill="gray">ESS DC BUS</text>
+                <rect id="bus-emer-dc" x="350" y="425" width="100" height="10" class="bus"/> <text x="400" y="450" text-anchor="middle" fill="gray">EMER DC</text>
+
+                <!-- Components -->
+                <use href="#component-box" x="150" y="265"/> <text x="150" y="270" fill="white" text-anchor="middle">TRU 1</text>
+                <use href="#component-box" x="650" y="265"/> <text x="650" y="270" fill="white" text-anchor="middle">TRU 2</text>
+                <use href="#component-box" x="350" y="265"/> <text x="350" y="270" fill="white" text-anchor="middle">ESS TRU</text>
+                <use href="#component-box" x="450" y="265"/> <text x="450" y="270" fill="white" text-anchor="middle">INV</text>
+                <use href="#component-box" x="150" y="415"/> <text x="150" y="420" fill="white" text-anchor="middle">BAT 1</text>
+                <use href="#component-box" x="650" y="415"/> <text x="650" y="420" fill="white" text-anchor="middle">BAT 2</text>
+                <use href="#component-box" x="400" y="485"/> <text x="400" y="490" fill="white" text-anchor="middle">MAIN BAT</text>
+
+                <!-- Contactors -->
+                <use href="#contactor-box" x="100" y="100"/> <text id="status-gb1" x="100" y="122" fill="gray" text-anchor="middle" class="contactor-status">GB1</text>
+                <use href="#contactor-box" x="700" y="100"/> <text id="status-gb2" x="700" y="122" fill="gray" text-anchor="middle" class="contactor-status">GB2</text>
+                <use href="#contactor-box" x="300" y="80"/> <text id="status-agb" x="300" y="75" fill="gray" text-anchor="middle" class="contactor-status">AGB</text>
+                <use href="#contactor-box" x="500" y="80"/> <text id="status-epb" x="500" y="75" fill="gray" text-anchor="middle" class="contactor-status">EPB</text>
+                <use href="#contactor-box" x="200" y="100"/> <text id="status-btb1" x="200" y="122" fill="gray" text-anchor="middle" class="contactor-status">BTB1</text>
+                <use href="#contactor-box" x="600" y="100"/> <text id="status-btb2" x="600" y="122" fill="gray" text-anchor="middle" class="contactor-status">BTB2</text>
+
+            </svg>
+        </div>
+
+        <div id="status-message" class="mt-4 text-center text-lg text-yellow-400 h-8"></div>
+    </div>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const switches = {
+            gen1: document.getElementById('gen1-switch'),
+            gen2: document.getElementById('gen2-switch'),
+            apu: document.getElementById('apu-switch'),
+            extPwr: document.getElementById('ext-pwr-switch'),
+        };
+
+        const statusTexts = {
+            gen1: document.getElementById('gen1-status-text'),
+            gen2: document.getElementById('gen2-status-text'),
+            apu: document.getElementById('apu-status-text'),
+            extPwr: document.getElementById('ext-pwr-status-text'),
+        };
+
+        const indicators = {
+            gen1: document.querySelector('#comp-gen1 .indicator'),
+            gen2: document.querySelector('#comp-gen2 .indicator'),
+            apu: document.querySelector('#comp-apu .indicator'),
+            extPwr: document.querySelector('#comp-ext-pwr .indicator'),
+        };
+        
+        const contactorStatus = {
+            gb1: document.getElementById('status-gb1'),
+            gb2: document.getElementById('status-gb2'),
+            agb: document.getElementById('status-agb'),
+            epb: document.getElementById('status-epb'),
+            btb1: document.getElementById('status-btb1'),
+            btb2: document.getElementById('status-btb2'),
+        };
+
+        const paths = {
+            gen1_ac1: document.getElementById('path-gen1-ac1'),
+            gen2_ac2: document.getElementById('path-gen2-ac2'),
+            apu_tie: document.getElementById('path-apu-tie'),
+            ext_tie: document.getElementById('path-ext-tie'),
+            tie_ac1: document.getElementById('path-tie-ac1'),
+            tie_ac2: document.getElementById('path-tie-ac2'),
+            ac1_ess: document.getElementById('path-ac1-ess'),
+            ac2_ess: document.getElementById('path-ac2-ess'),
+            ac1_tru1: document.getElementById('path-ac1-tru1'),
+            ac2_tru2: document.getElementById('path-ac2-tru2'),
+            tru1_dc1: document.getElementById('path-tru1-dc1'),
+            tru2_dc2: document.getElementById('path-tru2-dc2'),
+            ess_ac_tru: document.getElementById('path-ess-ac-tru'),
+            ess_tru_dc: document.getElementById('path-ess-tru-dc'),
+            dc_xtie: document.getElementById('path-dc-xtie'),
+            dc1_bat1: document.getElementById('path-dc1-bat1'),
+            dc2_bat2: document.getElementById('path-dc2-bat2'),
+            ess_ac_inv: document.getElementById('path-ess-ac-inv'),
+            inv_emer_ac: document.getElementById('path-inv-emer-ac'),
+            bat_emer_dc: document.getElementById('path-bat-emer-dc'),
+            ess_dc_emer_dc: document.getElementById('path-ess-dc-emer-dc'),
+        };
+
+        const buses = {
+            ac1: document.getElementById('bus-ac1'),
+            ac2: document.getElementById('bus-ac2'),
+            ess_ac: document.getElementById('bus-ess-ac'),
+            emer_ac: document.getElementById('bus-emer-ac'),
+            dc1: document.getElementById('bus-dc1'),
+            dc2: document.getElementById('bus-dc2'),
+            ess_dc: document.getElementById('bus-ess-dc'),
+            emer_dc: document.getElementById('bus-emer-dc'),
+        };
+
+        const statusMessage = document.getElementById('status-message');
+
+        let state = {
+            gen1: true, gen2: true, apu: false, extPwr: false
+        };
+
+        Object.keys(switches).forEach(key => {
+            switches[key].addEventListener('change', () => {
+                state[key] = switches[key].checked;
+                updateSystem();
+            });
+        });
+
+        function updateSystem() {
+            resetVisualization();
+            
+            let power = {
+                ac1: null, ac2: null, ess_ac: null, emer_ac: null,
+                dc1: null, dc2: null, ess_dc: null, emer_dc: null
+            };
+            
+            let contactors = {
+                gb1: false, gb2: false, agb: false, epb: false, btb1: false, btb2: false
+            };
+            
+            let message = "";
+
+            // --- AC POWER SOURCE LOGIC (Break Before Make) ---
+            // Priority: On-side GEN > APU > EXT PWR > Off-side GEN
+            
+            let tie_bus_source = null;
+            if (state.apu) tie_bus_source = 'apu';
+            else if (state.extPwr) tie_bus_source = 'extPwr';
+
+            // AC BUS 1
+            if (state.gen1) {
+                power.ac1 = 'gen1';
+                contactors.gb1 = true;
+            } else if (tie_bus_source) {
+                power.ac1 = tie_bus_source;
+                contactors[tie_bus_source === 'apu' ? 'agb' : 'epb'] = true;
+                contactors.btb1 = true;
+            } else if (state.gen2) {
+                power.ac1 = 'gen2';
+                contactors.gb2 = true;
+                contactors.btb2 = true;
+                contactors.btb1 = true;
+            }
+
+            // AC BUS 2
+            if (state.gen2) {
+                power.ac2 = 'gen2';
+                contactors.gb2 = true;
+            } else if (tie_bus_source) {
+                power.ac2 = tie_bus_source;
+                contactors[tie_bus_source === 'apu' ? 'agb' : 'epb'] = true;
+                contactors.btb2 = true;
+            } else if (state.gen1) {
+                power.ac2 = 'gen1';
+                contactors.gb1 = true;
+                contactors.btb1 = true;
+                contactors.btb2 = true;
+            }
+
+            // ESS AC BUS (Priority: AC1 > AC2)
+            if (power.ac1) power.ess_ac = 'ac1';
+            else if (power.ac2) power.ess_ac = 'ac2';
+
+            // --- DC POWER LOGIC ---
+            if (power.ac1) power.dc1 = 'tru1';
+            if (power.ac2) power.dc2 = 'tru2';
+            if (power.ess_ac) power.ess_dc = 'ess_tru';
+
+            // For simplicity, DC X-TIE closes if one DC bus is unpowered but the other is
+            if(power.dc1 && !power.dc2) power.dc2 = 'dc_xtie';
+            if(power.dc2 && !power.dc1) power.dc1 = 'dc_xtie';
+
+            // --- EMERGENCY POWER LOGIC ---
+            if (power.ess_ac) power.emer_ac = 'inv';
+            if (power.ess_dc) power.emer_dc = 'ess_dc';
+            else power.emer_dc = 'bat'; // Battery is the last resort
+
+            // --- VISUALIZATION ---
+            // Power source paths
+            if (power.ac1 === 'gen1') activatePath(paths.gen1_ac1);
+            if (power.ac2 === 'gen2') activatePath(paths.gen2_ac2);
+            if (power.ac1 === 'apu' || power.ac2 === 'apu') activatePath(paths.apu_tie);
+            if (power.ac1 === 'extPwr' || power.ac2 === 'extPwr') activatePath(paths.ext_tie);
+            
+            // Tie paths
+            if (contactors.btb1 && (power.ac1 === 'apu' || power.ac1 === 'extPwr' || power.ac1 === 'gen2')) activatePath(paths.tie_ac1);
+            if (contactors.btb2 && (power.ac2 === 'apu' || power.ac2 === 'extPwr' || power.ac2 === 'gen1')) activatePath(paths.tie_ac2);
+
+
+            // AC Bus power and downstream
+            if (power.ac1) {
+                powerBus(buses.ac1);
+                activatePath(paths.ac1_tru1);
+            }
+            if (power.ac2) {
+                powerBus(buses.ac2);
+                activatePath(paths.ac2_tru2);
+            }
+            if (power.ess_ac === 'ac1') activatePath(paths.ac1_ess);
+            if (power.ess_ac === 'ac2') activatePath(paths.ac2_ess);
+            
+            if(power.ess_ac){
+                powerBus(buses.ess_ac);
+                activatePath(paths.ess_ac_tru);
+                activatePath(paths.ess_ac_inv);
+            }
+
+            // DC Bus power and downstream
+            if(power.dc1) { powerBus(buses.dc1); activatePath(paths.tru1_dc1); activatePath(paths.dc1_bat1);}
+            if(power.dc2) { powerBus(buses.dc2); activatePath(paths.tru2_dc2); activatePath(paths.dc2_bat2);}
+            if(power.dc1 && power.dc2 && (power.dc1 === 'dc_xtie' || power.dc2 === 'dc_xtie')) activatePath(paths.dc_xtie);
+
+
+            if(power.ess_dc){
+                powerBus(buses.ess_dc);
+                activatePath(paths.ess_tru_dc);
+            }
+
+            // Emergency bus power
+            if(power.emer_ac) { powerBus(buses.emer_ac); activatePath(paths.inv_emer_ac);}
+            if(power.emer_dc === 'ess_dc') { powerBus(buses.emer_dc); activatePath(paths.ess_dc_emer_dc);}
+            if(power.emer_dc === 'bat') { powerBus(buses.emer_dc); activatePath(paths.bat_emer_dc);}
+            
+
+            // --- UI/TEXT UPDATES ---
+            Object.keys(state).forEach(key => {
+                const textEl = statusTexts[key];
+                textEl.textContent = state[key] ? 'ON' : 'OFF';
+                textEl.className = state[key] ? 'text-green-400' : 'text-red-400';
+                indicators[key].style.fill = state[key] ? 'green' : 'gray';
+                if (!state[key]) indicators[key].classList.add('blinking');
+                else indicators[key].classList.remove('blinking');
+            });
+            
+            if (state.apu || state.extPwr) {
+                indicators.gen1.style.fill = state.gen1 ? 'green' : 'gray';
+                indicators.gen2.style.fill = state.gen2 ? 'green' : 'gray';
+            }
+            
+            Object.keys(contactors).forEach(key => {
+                const statusEl = contactorStatus[key];
+                statusEl.textContent = `${key.toUpperCase()}: ${contactors[key] ? "CLS" : "OPN"}`;
+                statusEl.style.fill = contactors[key] ? 'lime' : 'gray';
+            });
+            
+            // Status message
+             if (!power.ac1 && !power.ac2) {
+                message = "Total AC Power Failure. Emergency systems on Battery.";
+            } else if (power.ac1 === 'gen1' && power.ac2 === 'gen2') {
+                message = "Normal Operation: System Split, GENs powering respective sides.";
+            } else if (power.ac1 === 'gen2' || power.ac2 === 'gen1') {
+                message = "Single GEN Operation: On-side GEN powering entire system via bus ties.";
+            } else if (power.ac1 === 'apu' || power.ac2 === 'apu') {
+                message = "APU powering the main AC buses.";
+            } else if (power.ac1 === 'extPwr' || power.ac2 === 'extPwr') {
+                 message = "External Power is online.";
+            }
+            statusMessage.textContent = message;
+        }
+
+        function resetVisualization() {
+            Object.values(paths).forEach(p => p.classList.remove('active'));
+            Object.values(buses).forEach(b => b.classList.remove('powered'));
+            Object.values(contactorStatus).forEach(c => {
+                c.textContent = `${c.id.replace('status-','').toUpperCase()}: OPN`;
+                c.style.fill = 'gray';
+            });
+            statusMessage.textContent = "";
+        }
+
+        function activatePath(el) { if(el) el.classList.add('active'); }
+        function powerBus(el) { if(el) el.classList.add('powered'); }
+
+        updateSystem();
+    });
+    </script>
+</body>
+</html>
+
